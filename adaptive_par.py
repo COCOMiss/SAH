@@ -76,9 +76,6 @@ def create_task_specific_parameters(model, task_groups,task_specific_parameters,
     original_param=list(model.parameters())
     for param_idx in task_groups.keys():
         specific_parameters_set.add(param_idx)
-        # task_params[param_idx] = {}
-        
-        # Create a copy of the original parameter
         for group_id in task_groups[param_idx].keys():
             if group_id==0:
                 for task_idx in task_groups[param_idx][group_id]:
@@ -92,9 +89,6 @@ def create_task_specific_parameters(model, task_groups,task_specific_parameters,
                     if task_idx not in task_specific_parameters:
                         task_specific_parameters[task_idx] = {}
                     task_specific_parameters[task_idx][param_idx] = copy_param
-                # task_param = torch.nn.Parameter(original_param.data.clone())
-                # task_params[param_idx][group_id] = task_param
-    
     return task_specific_parameters,specific_parameters_set
 
 
@@ -148,7 +142,6 @@ def find_most_divergent_parameter_module(model, losses,specific_parameters_set):
     
     # Initialize dictionaries
     param_grads = {}
-    # loss_grads = {i: [] for i in range(n_losses)}
     param_names = []
     low_similarity_pairs = {}
     task_groups = {}

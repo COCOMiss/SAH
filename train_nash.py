@@ -176,10 +176,8 @@ def eval(args,model,test_dataset,group_test_dataloader,Ks_list,poi_dict):
         
         for group_num in range(len(args.divide_group)):
             batchs.append(next(iter(dataloaders[group_num])))
-            
         
         sample_recall_array_dict,sample_mrr_array_dict= eval_woMeta(args,model,test_dataset,batchs,Ks_list,poi_dict)
-        
         
         for group_id,group in enumerate(args.divide_group.keys()):
         
@@ -189,8 +187,6 @@ def eval(args,model,test_dataset,group_test_dataloader,Ks_list,poi_dict):
                     accuracy_l_dict[group][s].update(np.array(sample_recall_array_dict[group][s, 1]),group_counts[s])
                 if sample_mrr_array_dict[group][s] is not None:
                     mrr_l_dict[group][s].update(np.array(sample_mrr_array_dict[group][s]),group_counts[s])
-                
-        
             
             for s in range(args.divide_group[group]):
                 if sample_mrr_array_dict[group][s] is not None:

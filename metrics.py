@@ -21,9 +21,6 @@ def ndcg_k(y_pred, y_true, k):
 
 
 def mAP_metric(y_true_seq, y_pred_seq, k):
-    # AP: area under PR curve
-    # But in next POI rec, the number of positive sample is always 1. Precision is not well defined.
-    # Take def of mAP from Personalized Long- and Short-term Preference Learning for Next POI Recommendation
     rlt = 0
     for y_true, y_pred in zip(y_true_seq, y_pred_seq):
         rec_list = y_pred.argsort()[-k:][::-1]
@@ -48,7 +45,7 @@ def MRR_metric(y_pred_seq,y_true_seq):
         rlt += 1 / (r_idx + 1)
         count += 1
     return rlt / count
-    # return rlt
+
 
 
 def batch_performance(batch_y_pred, batch_y_true, k):
@@ -62,7 +59,6 @@ def batch_performance(batch_y_pred, batch_y_true, k):
     recall = batch_recall / batch_size
 
     return recall
-    # return batch_recall
 
 
 

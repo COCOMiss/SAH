@@ -53,26 +53,6 @@ def to_catgorical(group_attr,args):
     categorical[np.arange(n), y] = 1
     return categorical
 
-def pareto_check(table_results, eps_pareto=0):
-
-    #table_results dimension: objectives x iterations
-    pareto = np.zeros([table_results.shape[1]])
-    if table_results.shape[1] == 1:
-        pareto[0] = True
-        # print('one')
-    else:
-        for i in np.arange(table_results.shape[1]):
-            dif_risks = table_results[:, i][:, np.newaxis] - table_results  #(dim: objectives x iterations)
-            dif_risks = dif_risks < eps_pareto  #evaluates if item iteration i dominates some coordinate, 1 indicates dominance
-            dif_risks[:,i] = 1 #we would like to have a row full of ones
-            dif_risks = np.sum(dif_risks,axis = 0) #sum on objectives
-            pareto[i] = (np.prod(dif_risks) > 0) #prod of iterations (I cannot have an iteration that = 0 when sum all objectives differences
-
-    if np.sum(pareto) == 0: #if all vectors are the same basically...
-        ix_p = np.argmin(np.sum(table_results,axis=0))
-        pareto[ix_p] = 1
-    return pareto
-
 
 def get_unique_seqs_for_sessions(sessions_dict):
     """Get unique seq for each session"""
@@ -197,7 +177,6 @@ def get_user_reverse_traj(users_trajs_dict):
 
 def gen_poi_geo_adj(num_pois, pois_coos_dict, distance_threshold):
     """Generate geogrpahical adjacency matrix with pois_coos_dict and distance_threshold"""
-    # poi_geo_adj = np.zeros(shape=(num_pois, num_pois))
     poi_geo_adj = sp.lil_matrix((num_pois, num_pois)) 
     
     for poi1 in tqdm(range(num_pois + 1), desc="gen poi geo adj"):
@@ -212,8 +191,6 @@ def gen_poi_geo_adj(num_pois, pois_coos_dict, distance_threshold):
             if hav_dist <= distance_threshold:
                 poi_geo_adj[poi1, poi2] = 1
                 poi_geo_adj[poi2, poi1] = 1
-
-    # transform np.ndarray to csr_matrix
     poi_geo_adj = sp.csr_matrix(poi_geo_adj)
     return poi_geo_adj
 
@@ -352,23 +329,18 @@ def normalized_adj_tensor(adj_tensor):
     """Normalized adjacent tensor"""
     # Compute the degree matrix
     degree_tensor = torch.diag(torch.sum(adj_tensor, dim=1))
-
     # inverse degree
     inverse_degree_tensor = torch.inverse(degree_tensor)
-
     # normalized adjacency
     norm_adj = torch.matmul(inverse_degree_tensor, adj_tensor)
-
     # convert the normalized adjacency matrix to a sparse tensor
     sparse_norm_adj = torch.sparse.FloatTensor(norm_adj)
-
     return sparse_norm_adj
 
 
 def gen_local_graph(adj):
     """Add self loop"""
     G = normalized_adj(adj + sp.eye(adj.shape[0]))
-
     return G
 
 
@@ -434,8 +406,6 @@ def gen_sparse_H_user(sessions_dict, num_pois,  num_users,user_label_dict=None,g
 
 def gen_sparse_H_time(sessions_dict, time_category, num_users,time_group_dict=None,group_num=1):
     """Generate sparse incidence matrix for hypergraph"""
-    # H = np.zeros(shape=(num_pois, num_users))
-    # H=sp.lil_matrix((num_pois,num_users))
     
     if group_num > 1:
         H_groups={}
@@ -467,9 +437,6 @@ def gen_sparse_H_time(sessions_dict, time_category, num_users,time_group_dict=No
     
 def gen_sparse_H_time_poi(sessions_dict, time_category, num_poi,group_dict=None,group_num=1):
     """Generate sparse incidence matrix for hypergraph"""
-    # H = np.zeros(shape=(num_pois, num_users))
-    # H=sp.lil_matrix((num_pois,num_users))
-    
     if group_num > 1:
         H_groups={}
         for s in range(group_num):
@@ -508,7 +475,6 @@ def gen_sparse_directed_H_poi_(users_trajs_dict, num_pois):
     Rows: source POIs
     Columns: target POIs
     """
-    # H = np.zeros(shape=(num_pois, num_pois))
     H= sp.lil_matrix((num_pois,num_pois))
     for userID, traj in tqdm(users_trajs_dict.items(),desc="gen_sparse_directed_H_poi"):
         for src_idx in range(len(traj) - 1):
@@ -743,29 +709,6 @@ def maksed_mse_loss(input, target, mask_value=-1):
     return loss
 
 
-
-def pareto_check(table_results, eps_pareto=0):
-
-    #table_results dimension: objectives x iterations
-    pareto = np.zeros([table_results.shape[1]])
-    if table_results.shape[1] == 1:
-        pareto[0] = True
-        # print('one')
-    else:
-        for i in np.arange(table_results.shape[1]):
-            dif_risks = table_results[:, i][:, np.newaxis] - table_results  #(dim: objectives x iterations)
-            dif_risks = dif_risks < eps_pareto  #evaluates if item iteration i dominates some coordinate, 1 indicates dominance
-            dif_risks[:,i] = 1 #we would like to have a row full of ones
-            dif_risks = np.sum(dif_risks,axis = 0) #sum on objectives
-            pareto[i] = (np.prod(dif_risks) > 0) #prod of iterations (I cannot have an iteration that = 0 when sum all objectives differences
-
-    if np.sum(pareto) == 0: #if all vectors are the same basically...
-        ix_p = np.argmin(np.sum(table_results,axis=0))
-        pareto[ix_p] = 1
-    return pareto
-
-
-
 def extract_weight_method_parameters_from_args(args):
     weight_methods_parameters = defaultdict(dict)
     weight_methods_parameters.update(
@@ -780,19 +723,6 @@ def extract_weight_method_parameters_from_args(args):
         )
     )
     return weight_methods_parameters
-
-def load_graph_node_features(data_filename, pois_coos_filename,feature1='checkin_cnt', feature2='latitude',
-                             feature3='longitude'):
-    """X.shape: (num_node, 4), four features: checkin cnt, poi cat, latitude, longitude"""
-    
-    checkin_data = load_list_with_pkl(data_filename)  # data = [sessions_dict, labels_dict]
-    pois_coos_dict = load_dict_from_pkl(pois_coos_filename)
-   
-    ##读取文件
-    rlt_df = df[[feature1, feature2, feature3]]
-    X = rlt_df.to_numpy()
-
-    return X
 
 
 def load_graph_adj_mtx(path):

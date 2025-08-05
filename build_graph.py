@@ -52,18 +52,14 @@ def build_global_POI_checkin_graph(df, exclude_user=None):
 
 
 def save_graph_to_csv(G, dst_dir):
-    # Save graph to an adj matrix file and a nodes file
-    # Adj matrix file: edge from row_idx to col_idx with weight; Rows and columns are ordered according to nodes file.
-    # Nodes file: node_name/poi_id, node features (category, location); Same node order with adj matrix.
 
     # Save adj matrix
     nodelist = G.nodes()
     A = nx.adjacency_matrix(G, nodelist=nodelist)
-    # np.save(os.path.join(dst_dir, 'adj_mtx.npy'), A.todense())
     np.savetxt(os.path.join(dst_dir, 'graph_A.csv'), A.todense(), delimiter=',')
 
     # Save nodes list
-    nodes_data = list(G.nodes.data())  # [(node_name, {attr1, attr2}),...]
+    nodes_data = list(G.nodes.data())
     with open(os.path.join(dst_dir, 'graph_X.csv'), 'w') as f:
         print('node_name/poi_id,checkin_cnt,poi_catid_code,latitude,longitude', file=f)
         for each in nodes_data:
@@ -130,18 +126,3 @@ def print_graph_statisics(G):
     print(f"Edge frequency (mean): {np.mean(edge_weights):.2f}")
     for i in range(0, 101, 20):
         print(f"Edge frequency ({i} percentile): {np.percentile(edge_weights, i)}")
-
-
-if __name__ == '__main__':
-    os.chdir('/home/linyuxi/multi-group-fair/autodl-tmp/GETNext-master')
-    dst_dir = r'dataset/tky_2014'
-
-    # Build POI checkin trajectory graph
-    train_df = pd.read_csv(os.path.join(dst_dir, 'tky_train.csv'))
-    print('Build global POI checkin graph -----------------------------------')
-    G = build_global_POI_checkin_graph(train_df)
-
-    # Save graph to disk
-    save_graph_to_pickle(G, dst_dir=dst_dir)
-    save_graph_to_csv(G, dst_dir=dst_dir)
-    save_graph_edgelist(G, dst_dir=dst_dir)

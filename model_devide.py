@@ -1,5 +1,3 @@
-
-
 import math
 import torch.nn as nn
 import torch
@@ -121,28 +119,14 @@ class MultiViewHyperConvLayer(nn.Module):
 
     def __init__(self, emb_dim, device):
         super(MultiViewHyperConvLayer, self).__init__()
-
-        # self.fc_seq = nn.Linear(2 * emb_dim, emb_dim, bias=True, device=device)
         self.fc_fusion = nn.Linear(2 * emb_dim, emb_dim, device=device)
         self.dropout = nn.Dropout(0.5)
         self.emb_dim = emb_dim
         self.device = device
 
     def forward(self, pois_embs, HG_up, HG_pu):
-        # pois_embs = [L, d]
-        # H_pu = [L, U]
-        # H_up = [U, L]
-        # pad_all_train_session = [U, MAX_SESS_LEN]
-
-        # 1. node -> hyperedge message
-        # 1) poi node aggregation
         msg_poi_agg = torch.sparse.mm(HG_up, pois_embs)  # [U, d]
-
-        # 2. propagation: hyperedge -> node
-        # propag_pois_embs = torch.sparse.mm(HG_poi_session, msg_emb)    # [L, d]
         propag_pois_embs = torch.sparse.mm(HG_pu, msg_poi_agg)  # [L, d]
-        # propag_pois_embs = self.dropout(propag_pois_embs)
-
         return propag_pois_embs
 
 
@@ -305,7 +289,6 @@ class MSAHG(nn.Module):
         # neg_score = torch.sum(torch.exp(torch.mm(emb1, emb2.T) / self.ssl_temp), axis=1)
         neg_score=self.cal_neg_sample_loss(emb1,emb2)
         
-        # neg_score=self.tem_neg_loss(emb1,emb2)
         loss = torch.sum(-torch.log(pos_score / (neg_score + 1e-8) + 1e-8))
         loss /= pos_score.shape[0]
         torch.cuda.empty_cache()
@@ -322,57 +305,6 @@ class MSAHG(nn.Module):
         
         return neg_score
     
-    
-    def tem_neg_loss(self,emb1,emb2):
-        chunk_size = 1000
-        neg_score = torch.zeros(emb1.size(0), device=emb1.device)
-        
-        for i in range(0, emb1.size(0), chunk_size):
-            chunk1 = emb1[i:i + chunk_size]
-            temp_score = torch.zeros(chunk1.size(0), device=emb1.device)
-            
-            for j in range(0, emb2.size(0), chunk_size):
-                chunk2 = emb2[j:j + chunk_size]
- 
-                chunk1_cpu = chunk1.cpu().detach().to(torch.float32)  # Convert to float32
-                chunk2_cpu = chunk2.cpu().detach().to(torch.float32)  # Convert to float32
-                
-                exp_result_cpu = torch.exp(torch.mm(chunk1_cpu, chunk2_cpu.T) / self.ssl_temp)
-                exp_result = exp_result_cpu.to(emb1.device).requires_grad_()
-                temp_score += torch.sum(exp_result, axis=1)
-
-                del chunk1_cpu, chunk2_cpu, exp_result_cpu, exp_result
-                torch.cuda.empty_cache()
-            
-            neg_score[i:i + chunk_size] = temp_score 
-            del temp_score
-            torch.cuda.empty_cache()
-        
-        return neg_score
-    
-    
-    def cal_neg_chunk_loss(self, emb1, emb2):
-        chunk_size = 100 
-        neg_score = torch.zeros(emb1.size(0), device=emb1.device)
-        
-        for i in range(0, emb1.size(0), chunk_size):
-            chunk1 = emb1[i:i + chunk_size]
-            temp_score = torch.zeros(chunk1.size(0), device=emb1.device)
-            
-            for j in range(0, emb2.size(0), chunk_size):
-                chunk2 = emb2[j:j + chunk_size]
-                # 分块计算 torch.exp
-                with torch.amp.autocast('cuda'):
-                    exp_result = torch.exp(torch.mm(chunk1, chunk2.T) / self.ssl_temp)
-                temp_score += torch.sum(exp_result, axis=1)
-                del exp_result
-                torch.cuda.empty_cache()
-            
-            neg_score[i:i + chunk_size] = temp_score
-            del temp_score
-            torch.cuda.empty_cache()
-        
-        return neg_score
     
     def cal_loss_infonce(self, emb1, emb2):
         pos_score = torch.exp(torch.sum(emb1 * emb2, dim=1) / self.ssl_temp)

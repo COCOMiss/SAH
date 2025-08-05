@@ -1,5 +1,3 @@
-
-
 import argparse
 import json
 import time
@@ -9,8 +7,6 @@ import yaml
 import datetime
 import torch.optim as optim
 import random
-
-
 from model_devide import *
 from metrics import batch_performance, sample_performance
 from train_nash import train,eval
@@ -363,19 +359,15 @@ def main():
                 
                 if k == 1:
                     final_results[group_mode][s]["Rec1"] = recall
-                    # final_results[group_mode][s]["NDCG1"] =  ndcg
 
                 elif k == 5:
                     final_results[group_mode][s]["Rec5"] =  recall
-                    # final_results[group_mode][s]["NDCG5"] =   ndcg
 
                 elif k == 10:
                     final_results[group_mode][s]["Rec10"] = recall
-                    # final_results[group_mode][s]["NDCG10"] =   ndcg
 
                 elif k == 20:
                     final_results[group_mode][s]["Rec20"] =  recall
-                    # final_results[group_mode][s]["NDCG20"] =   ndcg
                 
                 logging.info("{} Group {}: Recall@{}: {:.4f}".format(group_mode,s,k, recall))
             logging.info("\n") 

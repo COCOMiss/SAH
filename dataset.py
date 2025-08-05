@@ -64,9 +64,6 @@ class POIDataset(Dataset):
             
             for last_poi in self.users_trajs_lastpoi_group_dict.values():
                 self.group_num[int(self.pois_coos_dict[last_poi][0][2])]+=1
-            # for group_sessions in self.last_poi_group_data.values():
-            #     for group in group_sessions:
-            #         self.group_num[group]+=1
             
         dataset_mode = data_filename.split('/')[-1].split('.')[0]
         dataset_name=  data_filename.split('/')[-2]
@@ -84,30 +81,30 @@ class POIDataset(Dataset):
         
         if divide_group=='Time':
             self.HG_tp,self.HG_pt=self.get_graph(dataset_name,file_name="time_{}_H_tp.pkl".format(dataset_mode),graph_mode="time_poi",divide_group="time_poi",group_label_dict=self.time_label_dict)
-            ## time user 建图 得到归一化后的 time-user 和 user-time
+
             self.HG_tu,self.HG_ut=self.get_graph(dataset_name,file_name="time_{}_H_tu.pkl".format(dataset_mode),graph_mode="time_user",divide_group="time_user",group_label_dict=self.time_label_dict)
     
             self.HG_pu,self.HG_up=self.get_graph(dataset_name,file_name="{}_H_pu.pkl".format(dataset_mode),graph_mode="poi_user")
-            ## POI POI trans 建图 得到归一化后的 poi-src 和 user-tar
+
             self.HG_poi_src,self.HG_poi_tar=self.get_graph(dataset_name,file_name="{}_H_poi_src.pkl".format(dataset_mode),graph_mode="tran_poi")
             
         elif divide_group=='User':
             
             self.HG_tp,self.HG_pt=self.get_graph(dataset_name,file_name="{}_H_tp.pkl".format(dataset_mode),graph_mode="time_poi")
-            ## time user 建图 得到归一化后的 time-user 和 user-time
+    
             self.HG_tu,self.HG_ut=self.get_graph(dataset_name,file_name="{}_H_tu.pkl".format(dataset_mode),graph_mode="time_user")
-            ## POI user 建图 得到归一化后的 poi-user 和 user-poi
+
             self.HG_pu,self.HG_up=self.get_graph(dataset_name,file_name="user_{}_H_pu.pkl".format(dataset_mode),graph_mode="poi_user",divide_group="poi_user",group_label_dict=self.user_label_dict)
-            ## POI POI trans 建图 得到归一化后的 poi-src 和 user-tar
+
             self.HG_poi_src,self.HG_poi_tar=self.get_graph(dataset_name,file_name="{}_H_poi_src.pkl".format(dataset_mode),graph_mode="tran_poi",divide_group="User")
             
         else:
             self.HG_tp,self.HG_pt=self.get_graph(dataset_name,file_name="{}_H_tp.pkl".format(dataset_mode),graph_mode="time_poi")
-            ## time user 建图 得到归一化后的 time-user 和 user-time
+
             self.HG_tu,self.HG_ut=self.get_graph(dataset_name,file_name="{}_H_tu.pkl".format(dataset_mode),graph_mode="time_user")
-            ## POI user 建图 得到归一化后的 poi-user 和 user-poi
+
             self.HG_pu,self.HG_up=self.get_graph(dataset_name,file_name="{}_H_pu.pkl".format(dataset_mode),graph_mode="poi_user")
-            ## POI POI trans 建图 得到归一化后的 poi-src 和 user-tar
+
             self.HG_poi_src,self.HG_poi_tar=self.get_graph(dataset_name,file_name="{}_H_poi_src.pkl".format(dataset_mode),graph_mode="tran_poi")
             
         self.split_samples(divide_group)
@@ -115,7 +112,7 @@ class POIDataset(Dataset):
 
 
     def __len__(self):
-        # return self.num_users
+
         return len(self.users_trajs_dict)  
     
     def __getitem__(self, idx):
@@ -129,7 +126,7 @@ class POIDataset(Dataset):
        
        
         traj_labels=self.users_trajs_labels_dict[traj_idx]
-        # traj_labels = self.labels_dict[traj_idx]
+
         
         time_labels=self.users_traj_labels_time_dict[traj_idx]
         poi_group=int(self.pois_coos_dict[traj_seq[-1]][0][2])
@@ -154,8 +151,7 @@ class POIDataset(Dataset):
             "poi_group":torch.tensor(poi_group).to(self.device),
             "group":torch.tensor(group).to(self.device)
         }
-        # samples.append(sample)
-
+        
         return sample
     
     
@@ -204,7 +200,6 @@ class POIDataset(Dataset):
                     # H_tp dict [T, P]   
                     H_rc = gen_sparse_H_time_poi(self.poitime_session_data, time_category=96, num_poi=self.num_pois,group_dict=group_label_dict,group_num=self.args.divide_group['Time'])
                 elif graph_mode=='time_user':
-                    ##先不对time进行分组，group——num 为1
                     H_rc = gen_sparse_H_time(self.time_session_dict, time_category=96, num_users=self.num_users,time_group_dict=group_label_dict,group_num=self.args.divide_group['Time'])    # H_tu dict [T, U]
                 elif graph_mode=='poi_user':
                     # generate poi-session incidence matrix, its degree and hypergraph
@@ -218,7 +213,6 @@ class POIDataset(Dataset):
                     # H_tp dict [T, P]   
                     H_rc = gen_sparse_H_time_poi(self.poitime_session_data, time_category=96, num_poi=self.num_pois)
                 elif graph_mode=='time_user':
-                    ##先不对time进行分组，group——num 为1
                     H_rc = gen_sparse_H_time(self.time_session_dict, time_category=96, num_users=self.num_users)    # H_tu dict [T, U]
                 elif graph_mode=='poi_user':
                     # generate poi-session incidence matrix, its degree and hypergraph
@@ -233,7 +227,6 @@ class POIDataset(Dataset):
             save_dict_to_pkl("datasets/{}/{}.pkl".format(dataset_name,file_name), H_rc)
                  
         if graph_mode==divide_group:
-            ## 归一化，并得到 C R 图
             HG_rc={}
             HG_cr={} 
             # get degree of H_rc
@@ -352,20 +345,13 @@ class BalancedSampler(torch.utils.data.Sampler):
     def __iter__(self):
         # Calculate the number of samples to draw from each group
         num_samples_per_group = self.batch_size//len(self.samples)
-        # batch_indices=[]
         indices = []
         num_iter=sum(len(group) for group in self.samples.values()) // self.batch_size
         for i in range(num_iter):
-            # Sample from each group
             for i, group_samples in enumerate(self.samples.values()):
                 sampled_indices = random.sample(group_samples, min(num_samples_per_group, len(group_samples)))
                 indices.extend(sampled_indices)
-        # batch_indices.append(indices)
-
-        # Shuffle the indices to ensure randomness
-        # random.shuffle(indices)
         return iter(indices)
 
     def __len__(self):
-        # length=sum(len(group) for group in self.samples.values()) // self.batch_size
         return sum(len(group) for group in self.samples.values())
