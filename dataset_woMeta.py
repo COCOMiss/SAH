@@ -48,8 +48,6 @@ class POIDataset(Dataset):
         self.users_traj_time_dict, self.users_traj_labels_time_dict,self.users_traj_time_lens_dict,_ = get_user_traj(self.time_session_dict, self.time_labels)
         # self.last_time_dict=get_traj_lasttime(self.time_session_dict)
         
-       
-        
         self.group_num={}
         self.group_number=args.divide_group[divide_group]
         for s in range(self.group_number):

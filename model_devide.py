@@ -13,213 +13,6 @@ from torch.nn.utils.rnn import pad_sequence
 
 
 
-# class NodeTansMap(nn.Module):
-#     def __init__(self, in_features, nhid):
-#         super(NodeTansMap, self).__init__()
-#         self.W = nn.Parameter(torch.empty(size=(in_features, nhid)))
-#         nn.init.xavier_uniform_(self.W.data, gain=1.414)
-#         self.a = nn.Parameter(torch.empty(size=(2 * nhid, 1)))
-#         nn.init.xavier_uniform_(self.a.data, gain=1.414)
-#         self.leakyrelu = nn.LeakyReLU(0.2)
-    
-#     # def to_device(self,device):
-#     #     self.W.to(device)
-#     #     self.a.to(device)
-#     #     self.leakyrelu.to(device)
-     
-     
-     
-# class NodeTansDict(nn.Module):
-#     def __init__(self, X,A,in_features, nhid,poi_group_num,use_mask=False):
-#         super(NodeTansDict, self).__init__()
-#         self.use_mask = use_mask
-#         self.out_features = nhid
-#         self.TransDict={}
-#         self.poi_group_num=poi_group_num
-#         for i in range(poi_group_num):
-#             self.TransDict[i]=NodeTansMap(in_features,nhid)
-        
-        
-#         # self.W = nn.Parameter(torch.empty(size=(in_features, nhid)))
-#         # nn.init.xavier_uniform_(self.W.data, gain=1.414)
-#         # self.a = nn.Parameter(torch.empty(size=(2 * nhid, 1)))
-#         # nn.init.xavier_uniform_(self.a.data, gain=1.414)
-#         # self.leakyrelu = nn.LeakyReLU(0.2)
-#         self.X=X
-#         self.A=(A + 1).to(dtype=torch.float32)
-        
-#     def to_device(self,device):
-#         self.X=self.X.to(device)
-#         self.A=self.A.to(device)
-#         for i in range(self.poi_group_num):
-#             self.TransDict[i].to(device)
-#     def to_train(self):
-#         for i in range(self.poi_group_num):
-#             self.TransDict[i].train()
-#     def to_eval(self):
-#         for i in range(self.poi_group_num):
-#             self.TransDict[i].eval()
-        
-        
-#     def forward(self,group_predictions,group_index,input_batch_seq, batch_len):
-    
-        
-#         Wh = torch.mm(self.X, self.TransDict[group_index].W)
-
-#         e = self._prepare_attentional_mechanism_input(Wh,group_index)
-
-#         if self.use_mask:
-#             e = torch.where(self.A > 0, e, torch.zeros_like(e))  # mask
-
-#         e = e * self.A 
-#         group_predictions_adjusted = torch.zeros_like(group_predictions)  
-#         for i in range(len(batch_len)):
-#                 group_predictions_adjusted[i, :] = e[input_batch_seq[i,batch_len[i]-1]] + group_predictions[i, :]
-                
-#         return group_predictions_adjusted
-        
-
-#     def _prepare_attentional_mechanism_input(self, Wh,group_index):
-#         Wh1 = torch.matmul(Wh, self.TransDict[group_index].a[:self.out_features, :])
-#         Wh2 = torch.matmul(Wh, self.TransDict[group_index].a[self.out_features:, :])
-#         e = Wh1 + Wh2.T
-#         return self.TransDict[group_index].leakyrelu(e)
-
-
-
-# class NodeAttnMap(nn.Module):
-#     def __init__(self, X,A,in_features, nhid,use_mask=False):
-#         super(NodeAttnMap, self).__init__()
-#         self.use_mask = use_mask
-#         self.out_features = nhid
-#         self.W = nn.Parameter(torch.empty(size=(in_features, nhid)))
-#         nn.init.xavier_uniform_(self.W.data, gain=1.414)
-#         self.a = nn.Parameter(torch.empty(size=(2 * nhid, 1)))
-#         nn.init.xavier_uniform_(self.a.data, gain=1.414)
-#         self.leakyrelu = nn.LeakyReLU(0.2)
-#         self.X=X
-#         self.A=(A + 1).to(dtype=torch.float32)
-        
-#     def to_device(self,device):
-#         self.X=self.X.to(device)
-#         self.A=self.A.to(device)
-        
-        
-#     def forward(self,group_predictions,input_batch_seq, batch_len):
-    
-    
-#         Wh = torch.mm(self.X, self.W)
-
-#         e = self._prepare_attentional_mechanism_input(Wh)
-
-#         if self.use_mask:
-#             e = torch.where(self.A > 0, e, torch.zeros_like(e))  # mask
-
-#         # A = A + 1  # shift from 0-1 to 1-2
-#         e = e * self.A
-        
-        
-        
-#         group_predictions_adjusted = torch.zeros_like(group_predictions)
-#         # attn_map = node_attn_model(X, A)
-
-#         # for i in range(len(batch_seq_lens)):
-#         #     traj_i_input = batch_input_seqs[i]  # list of input check-in pois
-#         #     for j in range(len(traj_i_input)):
-#         #         group_predictions_adjusted[i, j, :] = e[traj_i_input[j], :] + group_predictions[i, j, :]
-        
-        
-#         for i in range(len(batch_len)):
-#                 group_predictions_adjusted[i, :] = e[input_batch_seq[i,batch_len[i]-1]] + group_predictions[i, :]
-                
-#         return group_predictions_adjusted
-        
-
-#     def _prepare_attentional_mechanism_input(self, Wh):
-#         Wh1 = torch.matmul(Wh, self.a[:self.out_features, :])
-#         Wh2 = torch.matmul(Wh, self.a[self.out_features:, :])
-#         e = Wh1 + Wh2.T
-#         return self.leakyrelu(e)
-        
-    
-#     def forward_(self,group_predictions,input_batch_seq, batch_len):
-#         group_pred_poi_adjusted = torch.zeros_like(group_predictions)
-#         dtype = group_predictions.dtype
-#         device = group_predictions.device
-        
-#         # 分块处理 Wh 的计算
-#         chunk_size = 25  # 进一步减小块大小
-#         num_chunks = (self.X.size(0) + chunk_size - 1) // chunk_size
-#         Wh = torch.zeros((self.X.size(0), self.out_features), device=device, dtype=dtype)
-        
-#         for i in range(num_chunks):
-#             start_idx = i * chunk_size
-#             end_idx = min((i + 1) * chunk_size, self.X.size(0))
-#             chunk = self.X[start_idx:end_idx].to(dtype=dtype)
-#             Wh[start_idx:end_idx] = torch.mm(chunk, self.W.to(dtype=dtype))
-#             del chunk
-#             torch.cuda.empty_cache()
-        
-#         # 使用混合精度计算来减少内存使用
-#         with torch.amp.autocast('cuda', dtype=torch.float32):
-#             # 分块处理注意力机制
-#             e = torch.zeros((Wh.size(0), Wh.size(0)), device=device, dtype=torch.float32)
-            
-#             # 计算注意力分数
-#             for i in range(num_chunks):
-#                 start_idx = i * chunk_size
-#                 end_idx = min((i + 1) * chunk_size, Wh.size(0))
-                
-#                 # 计算当前块的注意力
-#                 chunk = Wh[start_idx:end_idx].to(dtype=torch.float32)
-#                 Wh1 = torch.matmul(chunk, self.a[:self.out_features, :].to(dtype=torch.float32))
-#                 # Wh2 = torch.matmul(chunk, self.a[self.out_features:, :].to(dtype=torch.float32))
-                
-#                 # 分块计算与其他块的关系
-#                 for j in range(num_chunks):
-#                     j_start = j * chunk_size
-#                     j_end = min((j + 1) * chunk_size, Wh.size(0))
-                    
-#                     j_chunk = Wh[j_start:j_end].to(dtype=torch.float32)
-#                     # j_Wh1 = torch.matmul(j_chunk, self.a[:self.out_features, :].to(dtype=torch.float32))
-#                     j_Wh2 = torch.matmul(j_chunk, self.a[self.out_features:, :].to(dtype=torch.float32))
-                    
-#                     # 计算注意力分数
-#                     # e_chunk = self.leakyrelu(e_chunk)
-#                     e[start_idx:end_idx, j_start:j_end] = self.leakyrelu(Wh1 + j_Wh2.T)
-                    
-#                     del  j_Wh2
-#                     torch.cuda.empty_cache()
-                
-#                 del Wh1
-#                 torch.cuda.empty_cache()
-            
-#             if self.use_mask:
-#                 e = torch.where(self.A > 0, e, torch.zeros_like(e))  # mask
-            
-#             # 分块处理稀疏矩阵乘法
-#             e_result = torch.zeros_like(e, dtype=torch.float32)
-            
-#             for i in range(num_chunks):
-#                 start_idx = i * chunk_size
-#                 end_idx = min((i + 1) * chunk_size, e.size(1))
-                
-#                 # # 确保数据类型一致
-#                 # chunk = e[:, start_idx:end_idx]
-#                 self.A = self.A.to(dtype=torch.float32)
-                
-#                 # 对每个块进行稀疏矩阵乘法
-#                 e_result[:, start_idx:end_idx] = torch.sparse.mm(self.A,  e[:, start_idx:end_idx])
-                
-#                 # 清理不需要的张量
-#                 torch.cuda.empty_cache()
-#             torch.cuda.empty_cache()
-            
-#             # 分块处理最终预测
-#             for i in range(len(batch_len)):
-#                 group_pred_poi_adjusted[i, :] = e_result[input_batch_seq[i,batch_len[i]-1]].to(dtype=dtype) + group_predictions[i, :]
-        
-#         return group_pred_poi_adjusted
 
 
 class FuseEmbeddings(nn.Module):
@@ -463,20 +256,6 @@ class DCHL(nn.Module):
         self.mv_time_poi_network = MultiViewHyperConvNetwork(args.num_mv_layers, args.emb_dim,  args.dropout, device)
         self.geo_conv_network = GeoConvNetwork(args.num_geo_layers, args.dropout)
         self.di_hconv_network = DirectedHyperConvNetwork(args.num_di_layers, device, args.dropout)
-        
-        # self.time_embed_model= Time2Vec('sin', out_dim=args.time_embed_dim)
-        # self.embed_fuse_model= FuseEmbeddings(args.emb_dim, args.emb_dim)
-        
-        # seq_input_embed=self.emb_dim*2+args.time_embed_dim
-        
-        # self.seq_model = TransformerModel(num_pois,
-        #                         seq_input_embed,
-        #                          args.transformer_nhead,
-        #                          args.transformer_nhid,
-        #                          args.transformer_nlayers,
-        #                          dropout=args.transformer_dropout)
-
-        
 
         # gate for adaptive fusion with users embeddings
         self.user_trans_gate = nn.Sequential(nn.Linear(args.emb_dim, 1), nn.Sigmoid())
@@ -501,13 +280,6 @@ class DCHL(nn.Module):
         self.w_gate_t2u  = nn.Parameter(torch.FloatTensor(args.emb_dim, args.emb_dim))
         self.b_gate_t2u = nn.Parameter(torch.FloatTensor(1, args.emb_dim))
         
-        
-        ##user-time 得到的time embedding
-        # self.w_gate_u2t  = nn.Parameter(torch.FloatTensor(args.emb_dim, args.emb_dim))
-        # self.b_gate_u2t = nn.Parameter(torch.FloatTensor(1, args.emb_dim))
-        # ##poi-time 得到的time embedding
-        # self.w_gate_p2t  = nn.Parameter(torch.FloatTensor(args.emb_dim, args.emb_dim))
-        # self.b_gate_p2t = nn.Parameter(torch.FloatTensor(1, args.emb_dim))
         
         #poi
         nn.init.xavier_normal_(self.w_gate_geo.data)
@@ -628,10 +400,6 @@ class DCHL(nn.Module):
         return loss
 
     def cal_loss_cl_pois(self, hg_pois_embs, geo_pois_embs, trans_pois_embs,time_pois_embs):
-        # projection
-        # proj_hg_pois_embs = self.proj_hg(hg_pois_embs)
-        # proj_geo_pois_embs = self.proj_geo(geo_pois_embs)
-        # proj_trans_pois_embs = self.proj_trans(trans_pois_embs)
 
         # normalization
         norm_hg_pois_embs = F.normalize(hg_pois_embs, p=2, dim=1)
@@ -667,8 +435,6 @@ class DCHL(nn.Module):
         loss_cl_users += self.cal_loss_infonce(norm_geo_batch_users_embs, norm_trans_batch_users_embs)
         loss_cl_users += self.cal_loss_infonce(norm_geo_batch_users_embs, norm_time_batch_users_embs)
         loss_cl_users += self.cal_loss_infonce(norm_trans_batch_users_embs, norm_time_batch_users_embs)
-        
-        
 
         return loss_cl_users
     
@@ -774,13 +540,10 @@ class DCHL(nn.Module):
         time_gate_users_embs= torch.multiply(self.user_embedding.weight,
                                             torch.sigmoid(torch.matmul(self.user_embedding.weight,
                                                                        self.w_gate_t2u) + self.b_gate_t2u))
-        
-        
-        
-        
+       
+       
        
         ######
-        
         ##需要两幅图 time-poi 和 time-user// 并且 batch当中需要有time index的信息，用于和user相同，在获取embedding的时候，根据index 获取相应的time
         ## 这里的time 是上一个时间节点的time，也就是说每个user 对应一个time
         #####     
@@ -838,13 +601,9 @@ class DCHL(nn.Module):
              # transition-aware user embeddings
             trans_structural_users_embs=torch.sparse.mm(dataset.HG_up, trans_pois_embs)
         trans_batch_users_embs = trans_structural_users_embs[batch["user_idx"]]  # [BS, d]
-        
-        
-    
 
         loss_cl_poi = self.cal_loss_cl_pois(hg_pois_embs, geo_pois_embs, trans_pois_embs,time_pois_embs)
         loss_cl_user = self.cal_loss_cl_users(hg_batch_users_embs, geo_batch_users_embs, trans_batch_users_embs,batch_time_user_embs,self.device)
-        
         
         norm_hg_batch_users_embs = F.normalize(hg_batch_users_embs, p=2, dim=1)
         norm_geo_batch_users_embs = F.normalize(geo_batch_users_embs, p=2, dim=1)
@@ -857,13 +616,11 @@ class DCHL(nn.Module):
         trans_coef = self.user_trans_gate(norm_trans_batch_users_embs)
         time_coef = self.user_time_gate(norm_time_batch_users_embs)
         
-        
         # normalization
         norm_geo_pois_embs = F.normalize(geo_pois_embs, p=2, dim=1)
         norm_trans_pois_embs = F.normalize(trans_pois_embs, p=2, dim=1)
         norm_hg_pois_embs = F.normalize(hg_pois_embs, p=2, dim=1)
         norm_time_pois_embs = F.normalize(time_pois_embs, p=2, dim=1)        
-       
         
         fusion_batch_users_embs=hyper_coef*norm_hg_batch_users_embs+ geo_coef * norm_geo_batch_users_embs +  trans_coef* norm_trans_batch_users_embs + time_coef* norm_time_batch_users_embs
         # fusion_batch_time_embd=poi_t_coef*norm_poi_lasttime_embs+geo_t_coef*norm_geo_lasttime_embs+trans_t_coef*norm_trans_lasttime_embs+user_t_coef*norm_user_lasttime_embs
@@ -871,9 +628,6 @@ class DCHL(nn.Module):
         
         user_POI_perdict= fusion_batch_users_embs @ fusion_pois_embs.T
         
-
-
-        # return prediction_dict, loss_cl_user_dict, loss_cl_poi_dict
         return user_POI_perdict,loss_cl_poi,loss_cl_user
 
 
