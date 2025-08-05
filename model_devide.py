@@ -338,8 +338,6 @@ class MSAHG(nn.Module):
         norm_geo_batch_users_embs = F.normalize(geo_batch_users_embs, p=2, dim=1)
         norm_trans_batch_users_embs = F.normalize(trans_batch_users_embs, p=2, dim=1)
         norm_time_batch_users_embs = F.normalize(batch_time_user_embs, p=2, dim=1)
-        
-        #计算每个user的loss
         loss_cl_users= torch.zeros(norm_hg_batch_users_embs.shape[0]).to(device)
         loss_cl_users += self.cal_loss_infonce(norm_hg_batch_users_embs, norm_geo_batch_users_embs)
         loss_cl_users += self.cal_loss_infonce(norm_hg_batch_users_embs, norm_trans_batch_users_embs)

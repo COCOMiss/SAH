@@ -54,7 +54,6 @@ class POIDataset(Dataset):
             self.time_label_dict.update({i: 1 for i in range(48,96)}) 
             for last_time_sessions in self.last_time_dict.values():
                 for last_time in last_time_sessions:
-                    ###这里需要添加统计time label的代码
                     self.group_num[self.time_label_dict[last_time]]+=1
         elif divide_group=='User':
             for user_traj in self.users_trajs_dict.values():
@@ -68,7 +67,6 @@ class POIDataset(Dataset):
         dataset_mode = data_filename.split('/')[-1].split('.')[0]
         dataset_name=  data_filename.split('/')[-2]
         if os.path.exists("datasets/{}/{}_poi_geo_graph_matrix.pkl".format(dataset_name,dataset_mode)):
-            # 计算时间太长 直接存储使用
             self.poi_geo_graph_matrix = load_dict_from_pkl("datasets/{}/{}_poi_geo_graph_matrix.pkl".format(dataset_name,dataset_mode))  # Load the existing graph matrix
         else:
             # calculate poi-poi haversine distance and generate geographical adjacency matrix
@@ -189,9 +187,7 @@ class POIDataset(Dataset):
     
     def get_graph(self,dataset_name,file_name,graph_mode,divide_group=None,group_label_dict=None):
         
-        ## time POI 建图
         if os.path.exists("datasets/{}/{}.pkl".format(dataset_name,file_name)):
-            # 计算时间太长 直接存储使用
             H_rc = load_dict_from_pkl("datasets/{}/{}.pkl".format(dataset_name,file_name))  # Load the existing graph matrix
         else:
             if graph_mode==divide_group :
