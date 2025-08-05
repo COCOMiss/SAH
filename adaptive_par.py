@@ -12,9 +12,6 @@ import torch.nn.functional as F
 from scipy.optimize import minimize
 import warnings
 
-# from methods.min_norm_solvers import MinNormSolver, gradient_normalizers
-
-
 class AdaptiveParameter():
     def __init__(
         self,
@@ -60,10 +57,6 @@ class AdaptiveParameter():
             
         for param_name in task_groups.keys():
             specific_parameters_set.add(param_name)
-        
-        
-        # new_task_specific_params,updated_specific_parameters_set = create_task_specific_parameters(model,task_groups,task_specific_parameters,specific_parameters_set)
-
             
             
         return task_groups,specific_parameters_set

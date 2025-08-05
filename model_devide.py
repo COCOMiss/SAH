@@ -1,8 +1,4 @@
-# coding=utf-8
-"""
-@author: Yantong Lai
-@paper: [24 SIGIR] Disentangled Contrastive Hypergraph Learning for Next POI Recommendation
-"""
+
 
 import math
 import torch.nn as nn
@@ -231,9 +227,9 @@ class GeoConvNetwork(nn.Module):
         return output_pois_embs
 
 
-class DCHL(nn.Module):
+class MSAHG(nn.Module):
     def __init__(self, num_users, num_pois, args, device):
-        super(DCHL, self).__init__()
+        super(MSAHG, self).__init__()
 
         # definition
         # self.user_label_dict = user_label_dict
@@ -272,11 +268,10 @@ class DCHL(nn.Module):
         self.b_gate_seq = nn.Parameter(torch.FloatTensor(1, args.emb_dim))
         self.w_gate_col = nn.Parameter(torch.FloatTensor(args.emb_dim, args.emb_dim))
         self.b_gate_col = nn.Parameter(torch.FloatTensor(1, args.emb_dim))
-        ##time -poi 得到的poi embedding
+       
         self.w_gate_time  = nn.Parameter(torch.FloatTensor(args.emb_dim, args.emb_dim))
         self.b_gate_time = nn.Parameter(torch.FloatTensor(1, args.emb_dim))
        
-        ##time user 得到的user embedding
         self.w_gate_t2u  = nn.Parameter(torch.FloatTensor(args.emb_dim, args.emb_dim))
         self.b_gate_t2u = nn.Parameter(torch.FloatTensor(1, args.emb_dim))
         
@@ -318,62 +313,51 @@ class DCHL(nn.Module):
     
     
     def cal_neg_sample_loss(self, emb1, emb2, num_samples=1000):
-        """
-        计算负样本得分，使用随机采样减少显存占用。
-        :param emb1: 正样本 embedding，shape 为 (batch_size, embedding_dim)
-        :param emb2: 负样本 embedding，shape 为 (num_negatives, embedding_dim)
-        :param num_samples: 随机采样的负样本数量
-        :return: 负样本得分，shape 为 (batch_size,)
-        """
-       
         num_negatives = emb2.size(0)
-        # 随机采样负样本
+
         sample_indices = torch.randint(0, num_negatives, (num_samples,), device=emb1.device)
-        emb2_sampled = emb2[sample_indices]  # 采样后的负样本，shape 为 (num_samples, embedding_dim)
-        # 计算负样本得分
+        emb2_sampled = emb2[sample_indices]
         neg_score = torch.sum(torch.exp(torch.mm(emb1, emb2_sampled.T) / self.ssl_temp), axis=1)
-        # 如果采样了负样本，需要调整得分以反映全部负样本的期望值
         neg_score = neg_score * (num_negatives / num_samples)
         
         return neg_score
     
     
     def tem_neg_loss(self,emb1,emb2):
-        chunk_size = 1000  # 进一步减小分块大小
+        chunk_size = 1000
         neg_score = torch.zeros(emb1.size(0), device=emb1.device)
         
         for i in range(0, emb1.size(0), chunk_size):
             chunk1 = emb1[i:i + chunk_size]
-            temp_score = torch.zeros(chunk1.size(0), device=emb1.device)  # 临时存储结果
+            temp_score = torch.zeros(chunk1.size(0), device=emb1.device)
             
             for j in range(0, emb2.size(0), chunk_size):
                 chunk2 = emb2[j:j + chunk_size]
-                # 分块计算 torch.exp
+ 
                 chunk1_cpu = chunk1.cpu().detach().to(torch.float32)  # Convert to float32
                 chunk2_cpu = chunk2.cpu().detach().to(torch.float32)  # Convert to float32
                 
-                # 在 CPU 上计算 exp_result
                 exp_result_cpu = torch.exp(torch.mm(chunk1_cpu, chunk2_cpu.T) / self.ssl_temp)
                 exp_result = exp_result_cpu.to(emb1.device).requires_grad_()
                 temp_score += torch.sum(exp_result, axis=1)
-                # 释放临时变量
+
                 del chunk1_cpu, chunk2_cpu, exp_result_cpu, exp_result
                 torch.cuda.empty_cache()
             
-            neg_score[i:i + chunk_size] = temp_score  # 将结果赋值给 neg_score
-            del temp_score  # 释放临时变量
+            neg_score[i:i + chunk_size] = temp_score 
+            del temp_score
             torch.cuda.empty_cache()
         
         return neg_score
     
     
     def cal_neg_chunk_loss(self, emb1, emb2):
-        chunk_size = 100  # 进一步减小分块大小
+        chunk_size = 100 
         neg_score = torch.zeros(emb1.size(0), device=emb1.device)
         
         for i in range(0, emb1.size(0), chunk_size):
             chunk1 = emb1[i:i + chunk_size]
-            temp_score = torch.zeros(chunk1.size(0), device=emb1.device)  # 临时存储结果
+            temp_score = torch.zeros(chunk1.size(0), device=emb1.device)
             
             for j in range(0, emb2.size(0), chunk_size):
                 chunk2 = emb2[j:j + chunk_size]
@@ -381,11 +365,11 @@ class DCHL(nn.Module):
                 with torch.amp.autocast('cuda'):
                     exp_result = torch.exp(torch.mm(chunk1, chunk2.T) / self.ssl_temp)
                 temp_score += torch.sum(exp_result, axis=1)
-                del exp_result  # 释放临时变量
+                del exp_result
                 torch.cuda.empty_cache()
             
-            neg_score[i:i + chunk_size] = temp_score  # 将结果赋值给 neg_score
-            del temp_score  # 释放临时变量
+            neg_score[i:i + chunk_size] = temp_score
+            del temp_score
             torch.cuda.empty_cache()
         
         return neg_score
@@ -393,10 +377,7 @@ class DCHL(nn.Module):
     def cal_loss_infonce(self, emb1, emb2):
         pos_score = torch.exp(torch.sum(emb1 * emb2, dim=1) / self.ssl_temp)
         neg_score = torch.sum(torch.exp(torch.mm(emb1, emb2.T) / self.ssl_temp), axis=1)
-        #计算每个user的 对比损失
         loss = -torch.log(pos_score / (neg_score + 1e-8) + 1e-8)
-        
-
         return loss
 
     def cal_loss_cl_pois(self, hg_pois_embs, geo_pois_embs, trans_pois_embs,time_pois_embs):
@@ -441,15 +422,9 @@ class DCHL(nn.Module):
     
     
     def add_task_specific_params(self,task_groups):
-        """
-        为每个任务添加特定的参数
-        :param task_groups: 任务组参数
-        """
-        # 获取所有参数的名称和值
         named_params = dict(self.named_parameters())
         for param_name in task_groups.keys():
             self.specific_parameters_set.add(param_name)
-            # 为每个任务创建独立的参数副本
             for group_id in task_groups[param_name].keys():
                 
                 original_param = named_params[param_name]
@@ -463,51 +438,16 @@ class DCHL(nn.Module):
                     self.task_specific_parameters[task_idx][param_name] = copy_param
 
     def update_weights(self, task_specific_params):
-        """
-        更新模型的参数，同时保持计算图以支持反向传播
-        :param task_specific_params: 新的模型参数
-        """
-        # 获取所有参数的引用
-        # for par_name, task_param in task_specific_params.items():
-        #     # 使用原始参数名更新参数
-        #     setattr(self, par_name, task_param)
-    
-        #     # 确保参数需要梯度
-        #     task_param.requires_grad = True
-            
-        # # 保存原始参数
-        # original_params = {}
         
         for name in task_specific_params.keys():
             if '.' in name:
-                # 分割模块名和参数名
                 module_name, param_name = name.rsplit('.', 1)
-                # 获取模块
                 module = self
                 for part in module_name.split('.'):
                     module = getattr(module, part)
-                # 更新模块的参数
                 setattr(module, param_name, task_specific_params[name])
             else:
-                # 对于不包含点号的参数名，直接更新
                 setattr(self, name, task_specific_params[name])
-        
-        # for name, param in self.named_parameters():
-        #     if name in task_specific_params:
-        #         # original_params[name] = param
-        #         # 处理包含点号的参数名
-        #         if '.' in name:
-        #             # 分割模块名和参数名
-        #             module_name, param_name = name.rsplit('.', 1)
-        #             # 获取模块
-        #             module = self
-        #             for part in module_name.split('.'):
-        #                 module = getattr(module, part)
-        #             # 更新模块的参数
-        #             setattr(module, param_name, task_specific_params[name])
-        #         else:
-        #             # 对于不包含点号的参数名，直接更新
-        #             setattr(self, name, task_specific_params[name])
         
           
        
@@ -515,9 +455,7 @@ class DCHL(nn.Module):
 
     def forward(self, dataset, batch, task_idx=None):
         
-        # 如果提供了 fast_weights，则使用它们
         if task_idx is not None and len(self.task_specific_parameters)!=0 :
-            # 将 fast_weights 加载到模型中
             self.update_weights(self.task_specific_parameters[task_idx])
        
             
@@ -542,12 +480,7 @@ class DCHL(nn.Module):
                                                                        self.w_gate_t2u) + self.b_gate_t2u))
        
        
-       
-        ######
-        ##需要两幅图 time-poi 和 time-user// 并且 batch当中需要有time index的信息，用于和user相同，在获取embedding的时候，根据index 获取相应的time
-        ## 这里的time 是上一个时间节点的time，也就是说每个user 对应一个time
-        #####     
-        ##判断 组别      
+      
         if dataset.divide_group=='User':
             s=batch["group"][0].item()
             hg_pois_embs=self.mv_hconv_network(col_gate_pois_embs, dataset.HG_up[s], dataset.HG_pu[s])
@@ -562,18 +495,14 @@ class DCHL(nn.Module):
         
         if dataset.divide_group=='Time':
             s=batch["group"][0].item()
-            ##time -poi 获取poi embedding 
             time_pois_embs=self.mv_time_poi_network(time_gate_pois_embs,  dataset.HG_tp[s], dataset.HG_pt[s]) # [L, d]
         else:
-            ##time -poi 获取poi embedding 
             time_pois_embs=self.mv_time_poi_network(time_gate_pois_embs,  dataset.HG_tp, dataset.HG_pt) # [L, d]
        
         
         if dataset.divide_group=='Time':
-             ##time -user 获取user embedding 
             time_user_embs=self.mv_time_user_network(time_gate_users_embs, dataset.HG_tu[s], dataset.HG_ut[s]) # [U, d]
         else:
-            ##time -user 获取user embedding 
             time_user_embs=self.mv_time_user_network(time_gate_users_embs,  dataset.HG_tu, dataset.HG_ut) # [U, d] 
         batch_time_user_embs=(time_user_embs[batch["user_idx"]])
        
@@ -623,7 +552,6 @@ class DCHL(nn.Module):
         norm_time_pois_embs = F.normalize(time_pois_embs, p=2, dim=1)        
         
         fusion_batch_users_embs=hyper_coef*norm_hg_batch_users_embs+ geo_coef * norm_geo_batch_users_embs +  trans_coef* norm_trans_batch_users_embs + time_coef* norm_time_batch_users_embs
-        # fusion_batch_time_embd=poi_t_coef*norm_poi_lasttime_embs+geo_t_coef*norm_geo_lasttime_embs+trans_t_coef*norm_trans_lasttime_embs+user_t_coef*norm_user_lasttime_embs
         fusion_pois_embs = norm_hg_pois_embs  + norm_geo_pois_embs + norm_trans_pois_embs + norm_time_pois_embs
         
         user_POI_perdict= fusion_batch_users_embs @ fusion_pois_embs.T

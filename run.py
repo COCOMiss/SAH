@@ -1,8 +1,4 @@
-# coding=utf-8
-"""
-@author: Yantong Lai
-@paper: [24 SIGIR] Disentangled Contrastive Hypergraph Learning for Next POI Recommendation
-"""
+
 
 import argparse
 import json
@@ -19,7 +15,7 @@ from model_devide import *
 from metrics import batch_performance, sample_performance
 from train_nash import train,eval
 from utils import *
-from dataset_woMeta import *
+from dataset import *
 
 # clear cache
 torch.cuda.empty_cache()
@@ -36,8 +32,8 @@ parser.add_argument('--distance_threshold', default=2.5, type=float, help='dista
 parser.add_argument('--num_epochs', type=int, default=100, help='number of epochs')
 parser.add_argument('--batch_size', type=int, default=200, help='input batch size')
 parser.add_argument('--emb_dim', type=int, default=128, help='embedding size')
-parser.add_argument('--decay', type=float, default=5e-4)    # 5e-4
-parser.add_argument('--dropout', type=float, default=0.5, help='dropout')    # 0.3
+parser.add_argument('--decay', type=float, default=5e-4)
+parser.add_argument('--dropout', type=float, default=0.5, help='dropout')
 parser.add_argument('--deviceID', type=int, default=1)
 parser.add_argument('--lambda_cl', type=float, default=0.1, help='lambda of contrastive loss')
 parser.add_argument('--num_mv_layers', type=int, default=3)
@@ -45,7 +41,7 @@ parser.add_argument('--num_geo_layers', type=int, default=3)
 parser.add_argument('--num_di_layers', type=int, default=3, help='layer number of directed hypergraph convolutional network')
 parser.add_argument('--temperature', type=float, default=0.1)
 parser.add_argument('--keep_rate', type=float, default=1, help='ratio of edges to keep')
-parser.add_argument('--keep_rate_poi', type=float, default=1, help='ratio of poi-poi directed edges to keep')  # 0.7
+parser.add_argument('--keep_rate_poi', type=float, default=1, help='ratio of poi-poi directed edges to keep')
 parser.add_argument('--lr-scheduler-factor', type=float, default=0.1, help='Learning rate scheduler factor')
 parser.add_argument('--save_dir', type=str, default="output/TKY/temp")
 
@@ -97,18 +93,11 @@ args.device = torch.device("cuda:{}".format(args.deviceID) if torch.cuda.is_avai
 
 if args.divide_group:
     args.divide_group = json.loads(args.divide_group)
-            
-
-# set save_dir
-# current_time = datetime.datetime.now().strftime('%Y%m%d_%H%M%S')
 
 if not os.path.exists(args.save_dir):
     os.mkdir(args.save_dir)
-# current_save_dir = os.path.join(args.save_dir, current_time)
-current_save_dir = args.save_dir
 
-# create current save_dir
-# os.mkdir(current_save_dir)
+current_save_dir = args.save_dir
 
 # Setup logger
 for handler in logging.root.handlers[:]:
@@ -223,20 +212,11 @@ def main():
     # Load Model
     logging.info("4. Load Model")
     
-    model = DCHL(NUM_USERS, NUM_POIS, args, args.device)
+    model = MSAHG(NUM_USERS, NUM_POIS, args, args.device)
     model.to(args.device)
     
-  
-    
     criterion = nn.CrossEntropyLoss(reduction='none',ignore_index=-1).to(args.device)
-    # optimizer = optim.Adam(model.parameters(), lr=args.lr)
-    
     optimizer = optim.Adam(params=list(model.parameters()),lr=args.lr)
-    
-    lr_scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
-        optimizer, 'min', verbose=True, factor=args.lr_scheduler_factor)
-
-
     # Train
     logging.info("5. Start Training")
     Ks_list = [1, 5, 10, 20]
@@ -258,13 +238,8 @@ def main():
     group_weight=torch.ones(group_num)/group_num
     group_weight.to(args.device)
 
-          
-    ##用于记录每次迭代过程中 得到最好的表现结果
     ACC1_ACC20=0.0
     stop_counter=0
-    monitor_mrr=10
-    
-    
     specific_parameters_set=set()
     task_groups={}
     for epoch in range(args.num_epochs):
@@ -274,7 +249,7 @@ def main():
     
         if epoch !=0: 
             checkpoint = torch.load(saved_model_path)
-            model.load_state_dict(checkpoint['DCHL_dict'])
+            model.load_state_dict(checkpoint['MSAHG_dict'])
             model.to(args.device)
             logging.info("Reload model")
             
@@ -304,12 +279,11 @@ def main():
         for group_mode in args.divide_group.keys():
             valid_recall_array=valid_recall_array_dict[group_mode]
             valid_mrr_array=valid_mrr_array_dict[group_mode]
-            mrr_array = []  # Initialize as empty list
-            # mrr_dict[group_mode]={}
+            mrr_array = []
             for s in range(args.divide_group[group_mode]): 
                 for k in Ks_list:
                     col_idx = Ks_list.index(k)   
-                    recall = np.nanmean(valid_recall_array[:,s, col_idx]) # 使用 np.nanmean
+                    recall = np.nanmean(valid_recall_array[:,s, col_idx])
                     logging.info("{} Group {}: Recall@{}: {:.4f}".format(group_mode,s,k, recall))
                     if k==1:
                         acc1_acc20+=recall
@@ -318,24 +292,15 @@ def main():
                 mrr= np.nanmean(valid_mrr_array[:,s])
                 mrr_array.append(mrr)
                 mrr_reslut+=mrr
-                # mrr_dict[group_mode][s]=mrr
-                ##取每组的mrr的负值为risk
                 group_risks.append(1-mrr)
                 logging.info("{} Group {}: MRR : {:.4f}".format(group_mode,s, mrr))
                 logging.info("\n")
             
-            # Calculate and log variance of mrr_array
-            mrr_variance = np.var(mrr_array) if len(mrr_array) > 0 else 0
-            # discrepancy+=mrr_variance
-            logging.info("{} MRR Variance: {:.4f}".format(group_mode, mrr_variance))
-        
-        
-        
         
         if epoch== args.divide_epoch or epoch== args.divide_epoch+10:
             state_dict = {
             'epoch': epoch,
-            'DCHL_dict': model.state_dict(),
+            'MSAHG_dict': model.state_dict(),
             'task_groups':task_groups}
             
             torch.save(state_dict, saved_model_path)
@@ -347,12 +312,11 @@ def main():
         if epoch != args.divide_epoch and epoch!= args.divide_epoch+10:
             if  acc1_acc20 >= ACC1_ACC20  :
                 ACC1_ACC20 = acc1_acc20
-                # best_group_risks = group_risks
                 logging.info("Update validation results and save model at epoch{}".format(epoch))
                 
                 state_dict = {
                 'epoch': epoch,
-                'DCHL_dict': model.state_dict(),
+                'MSAHG_dict': model.state_dict(),
                 'task_groups':task_groups}
                     
                 torch.save(state_dict, saved_model_path)
@@ -372,11 +336,11 @@ def main():
     if os.path.exists(saved_model_path):
         checkpoint = torch.load(saved_model_path)
         try:
-            model.load_state_dict(checkpoint['DCHL_dict'])
+            model.load_state_dict(checkpoint['MSAHG_dict'])
         except:
             task_groups = checkpoint['task_groups']
             model.add_task_specific_params(task_groups)
-            model.load_state_dict(checkpoint['DCHL_dict'])
+            model.load_state_dict(checkpoint['MSAHG_dict'])
         model.to(args.device)
         
         logging.info("Reload best training model")
@@ -395,7 +359,7 @@ def main():
             for k in Ks_list:
                 col_idx = Ks_list.index(k)
                 
-                recall =np.nanmean(test_recall_array_dict[group_mode][:, s, col_idx]) # 使用 np.nanmean
+                recall =np.nanmean(test_recall_array_dict[group_mode][:, s, col_idx])
                 
                 if k == 1:
                     final_results[group_mode][s]["Rec1"] = recall

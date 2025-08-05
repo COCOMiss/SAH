@@ -1,8 +1,3 @@
-# coding=utf-8
-"""
-@author: Yantong Lai
-"""
-
 from collections import defaultdict
 import pickle
 import numpy as np
@@ -205,40 +200,6 @@ def gen_poi_geo_adj(num_pois, pois_coos_dict, distance_threshold):
     # poi_geo_adj = np.zeros(shape=(num_pois, num_pois))
     poi_geo_adj = sp.lil_matrix((num_pois, num_pois)) 
     
-    
-    ###new code 加快计算速度
-    
-    # valid_pois = [poi for poi in range(num_pois+1) if poi in pois_coos_dict]
-    
-    # def process_pair(poi1, poi2):
-    #     lat1, lon1 = pois_coos_dict[poi1][0]
-    #     lat2, lon2 = pois_coos_dict[poi2][0]
-    #     hav_dist = haversine_distance(lon1, lat1, lon2, lat2)
-    #     if hav_dist <= distance_threshold:
-    #         return (poi1, poi2), (poi2, poi1)
-    #     return None
-    
-    
-    # 计算总任务数
-#     total_tasks = sum(len(valid_pois) - i for i in range(len(valid_pois)))
-
-#     # 使用 tqdm 包装整个任务列表以显示总进度
-#     results = Parallel(n_jobs=-1)(
-#         delayed(process_pair)(poi1, poi2)
-#         for i, poi1 in enumerate(valid_pois)
-#         for poi2 in tqdm(valid_pois[i:], total=total_tasks, desc="Processing POI pairs")
-#     )
-    
-#     # 更新矩阵
-#     for result in results:
-#         if result:
-#             (poi1, poi2), (poi2, poi1) = result
-#             poi_geo_adj[poi1, poi2] = 1
-#             poi_geo_adj[poi2, poi1] = 1
-    
-    
-    ###old code
-    # traverse
     for poi1 in tqdm(range(num_pois + 1), desc="gen poi geo adj"):
         if poi1 not in pois_coos_dict:
             continue 
@@ -589,27 +550,16 @@ def calculate_laplacian_matrix(adj_mat):
     
     # Get number of nodes
     n_vertex = g.number_of_nodes()
-    
-    # 将 scipy 稀疏矩阵转换为 PyTorch 张量
-    # 首先转换为 COO 格式，然后创建 PyTorch 稀疏张量
     adj_mat_coo = adj_mat.tocoo()
     indices = torch.LongTensor([adj_mat_coo.row, adj_mat_coo.col])
     values = torch.FloatTensor(adj_mat_coo.data)
     adj_tensor = torch.sparse_coo_tensor(indices, values, size=adj_mat.shape).to_dense()
-    
-    # 计算度矩阵
     deg_tensor = torch.sum(adj_tensor, dim=1)
     deg_mat = torch.diag(deg_tensor)
     id_mat = torch.eye(n_vertex, dtype=adj_tensor.dtype, device=adj_tensor.device)
-    
-    # 确保所有矩阵在同一设备上
     wid_deg_mat = deg_mat + id_mat
     wid_adj_mat = adj_tensor + id_mat
-    
-    # 计算度矩阵的逆
     deg_inv = torch.diag(1.0 / (torch.diag(wid_deg_mat) + 1e-8))
-    
-    # 计算归一化的拉普拉斯矩阵
     hat_rw_normd_lap_mat = torch.mm(deg_inv, wid_adj_mat)
     
     return hat_rw_normd_lap_mat
@@ -676,11 +626,6 @@ def gen_HG_from_sparse_H(H, conv="sym"):
         invDV1_ = sp.diags(invDV1.toarray()[:, 0])
         HG = invDV1_ * H * W * invDE1_ * HT
 
-        # print("invDV1: \n{}".format(invDV1_.toarray()))
-        # print("invDE1: \n{}".format(invDE1_.toarray()))
-        # print("B-1 * HT: \n{}".format((invDE1_ * HT).toarray()))
-        # print("D * H: \n{}".format((invDV1_ * H).toarray()))
-
     return HG
 
 
@@ -691,19 +636,6 @@ def get_hyper_deg(incidence_matrix):
     hyper_deg[hyper_deg == 0.] = 1
     hyper_deg = sp.diags(1.0 / hyper_deg)
     '''
-
-    # H  = [num_node, num_edge]
-    # DV = [num_node, num_node]
-    # DV * H = [num_node, num_edge]
-
-    # HT = [num_edge, num_node]
-    # DE = [num_edge, num_edge]
-    # DE * HT = [num_edge, num_node]
-
-    # hyper_deg = incidence_matrix.sum(1)
-    # inv_hyper_deg = hyper_deg.power(-1)
-    # inv_hyper_deg_diag = sp.diags(inv_hyper_deg.toarray()[0])
-
     rowsum = np.array(incidence_matrix.sum(1))
     d_inv = np.power(rowsum, -1).flatten()
     d_inv[np.isinf(d_inv)] = 0.

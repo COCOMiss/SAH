@@ -1,8 +1,3 @@
-# coding=utf-8
-"""
-@author: Yantong Lai
-@paper: [24 SIGIR] Disentangled Contrastive Hypergraph Learning for Next POI Recommendation
-"""
 
 import numpy as np
 import torch
